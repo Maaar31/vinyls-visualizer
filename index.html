@@ -351,14 +351,14 @@
         
         <!-- Contrôles -->
         <div class="controls">
-            <button class="control-btn" onclick="previousTrack()">⏮</button>
-            <button class="control-btn play-btn" onclick="togglePlay()" id="playBtn">▶</button>
-            <button class="control-btn" onclick="nextTrack()">⏭</button>
+            <button class="control-btn" onclick="previousTrack()" aria-label="Piste précédente">⏮</button>
+            <button class="control-btn play-btn" onclick="togglePlay()" id="playBtn" aria-label="Lire/Pause">⏸</button>
+            <button class="control-btn" onclick="nextTrack()" aria-label="Piste suivante">⏭</button>
         </div>
         
         <!-- Bouton de connexion Spotify -->
         <div id="spotifyLogin" style="margin-top: 20px;">
-            <button onclick="connectToSpotify()" style="
+            <button onclick="connectToSpotify()" aria-label="Se connecter à Spotify" style="
                 background: linear-gradient(135deg, #1db954, #1ed760);
                 border: none;
                 border-radius: 25px;
@@ -392,12 +392,124 @@
     </div>
     
     <script>
+        // Configuration Spotify
+        const SPOTIFY_CLIENT_ID = 'VOc3b94a096f0e4ca392978b6ee67d002c'; // À remplacer par votre Client ID
+        const SPOTIFY_REDIRECT_URI = 'https://maaar31.github.io/vinyls-visualizer/'; // À remplacer par l'URL de votre GitHub Pages
+        const SPOTIFY_SCOPES = [
+            'streaming',
+            'user-read-email',
+            'user-read-private',
+            'user-read-playback-state',
+            'user-modify-playback-state'
+        ].join(' ');
+
         // État de lecture
-        let isPlaying = true;
+        let isPlaying = false;
         let currentProgress = 42; // Progression en pourcentage
         let currentTrackIndex = 0;
+        let accessToken = null;
+        let player = null;
         
-        // Données des pistes
+        // Fonction pour se connecter à Spotify
+        function connectToSpotify() {
+            // Générer un état aléatoire pour la sécurité
+            const state = Math.random().toString(36).substring(7);
+            localStorage.setItem('spotify_auth_state', state);
+            
+            // Construire l'URL d'autorisation
+            const authUrl = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
+                response_type: 'token',
+                client_id: SPOTIFY_CLIENT_ID,
+                scope: SPOTIFY_SCOPES,
+                redirect_uri: SPOTIFY_REDIRECT_URI,
+                state: state
+            }).toString();
+            
+            // Rediriger vers Spotify
+            window.location.href = authUrl;
+        }
+
+        // Fonction pour extraire le token des paramètres d'URL
+        function getHashParams() {
+            const hashParams = {};
+            const r = /([^&;=]+)=?([^&;]*)/g;
+            const q = window.location.hash.substring(1);
+            let e;
+            while (e = r.exec(q)) {
+                hashParams[e[1]] = decodeURIComponent(e[2]);
+            }
+            return hashParams;
+        }
+
+        // Initialiser le SDK Spotify
+        function initSpotifyPlayer() {
+            if (!accessToken) return;
+
+            const script = document.createElement('script');
+            script.src = 'https://sdk.scdn.co/spotify-player.js';
+            script.async = true;
+            document.body.appendChild(script);
+
+            window.onSpotifyWebPlaybackSDKReady = () => {
+                player = new Spotify.Player({
+                    name: 'Vinyl Visualizer',
+                    getOAuthToken: cb => cb(accessToken),
+                    volume: 0.5
+                });
+
+                player.addListener('ready', ({ device_id }) => {
+                    console.log('Ready with Device ID', device_id);
+                    startPlayback(device_id);
+                });
+
+                player.addListener('player_state_changed', state => {
+                    if (state) {
+                        updatePlayerState(state);
+                    }
+                });
+
+                player.connect();
+            };
+        }
+
+        // Démarrer la lecture
+        async function startPlayback(deviceId) {
+            try {
+                await fetch('https://api.spotify.com/v1/me/player/play?device_id=' + deviceId, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': 'Bearer ' + accessToken,
+                        'Content-Type': 'application/json',
+                    }
+                });
+            } catch (error) {
+                console.error('Erreur lors du démarrage de la lecture:', error);
+            }
+        }
+
+        // Mettre à jour l'état du lecteur
+        function updatePlayerState(state) {
+            isPlaying = !state.paused;
+            syncPlayUI();
+
+            if (state.track_window?.current_track) {
+                const track = state.track_window.current_track;
+                document.getElementById('trackTitle').textContent = track.name;
+                document.getElementById('trackArtist').textContent = track.artists[0].name;
+                document.getElementById('trackAlbum').textContent = track.album.name;
+                document.getElementById('albumCover').src = track.album.images[0].url;
+            }
+
+            // Mettre à jour la progression
+            if (state.duration && state.position) {
+                currentProgress = (state.position / state.duration) * 100;
+                document.getElementById('progressFill').style.width = currentProgress + '%';
+                document.getElementById('currentTime').textContent = formatTime(Math.floor(state.position / 1000));
+                document.getElementById('totalTime').textContent = formatTime(Math.floor(state.duration / 1000));
+            }
+        }
+
+        // Données des pistes temporaires (utilisées si non connecté)
         const tracks = [
             {
                 title: "Bohemian Rhapsody",
@@ -426,36 +538,27 @@
         ];
         
         // Fonction pour basculer la lecture/pause
-        function togglePlay() {
-            const vinyl = document.getElementById('vinyl');
-            const playBtn = document.getElementById('playBtn');
-            const bars = document.querySelectorAll('.bar');
+        async function togglePlay() {
+            if (!player) return;
             
-            isPlaying = !isPlaying;
-            
-            if (isPlaying) {
-                vinyl.classList.remove('paused');
-                playBtn.textContent = '⏸';
-                bars.forEach(bar => bar.style.animationPlayState = 'running');
-            } else {
-                vinyl.classList.add('paused');
-                playBtn.textContent = '▶';
-                bars.forEach(bar => bar.style.animationPlayState = 'paused');
-            }
+            await player.togglePlay();
+            // L'état sera mis à jour via l'événement player_state_changed
         }
         
         // Fonction pour passer à la piste précédente
-        function previousTrack() {
-            currentTrackIndex = (currentTrackIndex - 1 + tracks.length) % tracks.length;
-            updateTrackInfo();
-            resetProgress();
+        async function previousTrack() {
+            if (!player) return;
+            
+            await player.previousTrack();
+            // L'état sera mis à jour via l'événement player_state_changed
         }
         
         // Fonction pour passer à la piste suivante
-        function nextTrack() {
-            currentTrackIndex = (currentTrackIndex + 1) % tracks.length;
-            updateTrackInfo();
-            resetProgress();
+        async function nextTrack() {
+            if (!player) return;
+            
+            await player.nextTrack();
+            // L'état sera mis à jour via l'événement player_state_changed
         }
         
         // Fonction pour mettre à jour les informations de la piste
@@ -492,9 +595,13 @@
             }
         }
         
-        // Convertir le temps au format "mm:ss" en secondes
+        // Convertir le temps au format "mm:ss" en secondes (tolérant)
         function parseTimeToSeconds(timeString) {
-            const [minutes, seconds] = timeString.split(':').map(Number);
+            if (!timeString || typeof timeString !== 'string') return 0;
+            const parts = timeString.split(':').map(Number);
+            if (parts.length === 1) return isNaN(parts[0]) ? 0 : parts[0];
+            const [minutes = 0, seconds = 0] = parts;
+            if (isNaN(minutes) || isNaN(seconds)) return 0;
             return minutes * 60 + seconds;
         }
         
@@ -523,6 +630,23 @@
             }
         }
         
+        // Synchronise l'UI play/pause (texte du bouton, animation du vinyle et barres)
+        function syncPlayUI() {
+            const vinyl = document.getElementById('vinyl');
+            const playBtn = document.getElementById('playBtn');
+            const bars = document.querySelectorAll('.bar');
+
+            if (isPlaying) {
+                vinyl.classList.remove('paused');
+                playBtn.textContent = '⏸';
+                bars.forEach(bar => bar.style.animationPlayState = 'running');
+            } else {
+                vinyl.classList.add('paused');
+                playBtn.textContent = '▶';
+                bars.forEach(bar => bar.style.animationPlayState = 'paused');
+            }
+        }
+
         // Animation des barres du visualiseur
         function animateVisualizer() {
             const bars = document.querySelectorAll('.bar');
@@ -535,12 +659,28 @@
         // Initialisation
         document.addEventListener('DOMContentLoaded', function() {
             createParticles();
-            updateTrackInfo();
-            resetProgress();
             
-            // Démarrer les animations
-            setInterval(simulateProgress, 100);
-            setInterval(animateVisualizer, 200);
+            // Vérifier si on revient d'une authentification Spotify
+            const params = getHashParams();
+            if (params.access_token) {
+                // Sauvegarder le token
+                accessToken = params.access_token;
+                
+                // Cacher le bouton de connexion
+                document.getElementById('spotifyLogin').style.display = 'none';
+                
+                // Initialiser le lecteur Spotify
+                initSpotifyPlayer();
+            } else {
+                // Mode démonstration
+                updateTrackInfo();
+                resetProgress();
+                syncPlayUI();
+                
+                // Démarrer les animations de démonstration
+                setInterval(simulateProgress, 100);
+                setInterval(animateVisualizer, 200);
+            }
         });
     </script>
 </body>
