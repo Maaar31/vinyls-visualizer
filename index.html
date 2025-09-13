@@ -358,7 +358,7 @@
         
         <!-- Bouton de connexion Spotify -->
         <div id="spotifyLogin" style="margin-top: 20px;">
-            <button onclick="connectToSpotify()" aria-label="Se connecter à Spotify" style="
+            <button id="spotifyConnectBtn" aria-label="Se connecter à Spotify" style="
                 background: linear-gradient(135deg, #1db954, #1ed760);
                 border: none;
                 border-radius: 25px;
@@ -393,8 +393,11 @@
     
     <script>
         // Configuration Spotify
-        const SPOTIFY_CLIENT_ID = '8683ca9a38334b5aa32a183a24130a65'; // À remplacer par votre Client ID
-        const SPOTIFY_REDIRECT_URI = 'https://maaar31.github.io/vinyls-visualizer/'; // À remplacer par l'URL de votre GitHub Pages
+        const SPOTIFY_CLIENT_ID = '8683ca9a38334b5aa32a183a24130a65';
+        // Détection automatique de l'URL de redirection (local ou GitHub Pages)
+        const SPOTIFY_REDIRECT_URI = window.location.href.includes('github.io') 
+            ? 'https://maaar31.github.io/vinyls-visualizer/'
+            : window.location.origin + window.location.pathname;
         const SPOTIFY_SCOPES = [
             'streaming',
             'user-read-email',
@@ -412,21 +415,29 @@
         
         // Fonction pour se connecter à Spotify
         function connectToSpotify() {
-            // Générer un état aléatoire pour la sécurité
-            const state = Math.random().toString(36).substring(7);
-            localStorage.setItem('spotify_auth_state', state);
-            
-            // Construire l'URL d'autorisation
-            const authUrl = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
-                response_type: 'token',
-                client_id: SPOTIFY_CLIENT_ID,
-                scope: SPOTIFY_SCOPES,
-                redirect_uri: SPOTIFY_REDIRECT_URI,
-                state: state
-            }).toString();
-            
-            // Rediriger vers Spotify
-            window.location.href = authUrl;
+            console.log('Tentative de connexion à Spotify...');
+            try {
+                // Générer un état aléatoire pour la sécurité
+                const state = Math.random().toString(36).substring(7);
+                localStorage.setItem('spotify_auth_state', state);
+                
+                // Construire l'URL d'autorisation
+                const authUrl = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
+                    response_type: 'token',
+                    client_id: SPOTIFY_CLIENT_ID,
+                    scope: SPOTIFY_SCOPES,
+                    redirect_uri: SPOTIFY_REDIRECT_URI,
+                    state: state
+                }).toString();
+                
+                console.log('URL d\'autorisation:', authUrl);
+                
+                // Rediriger vers Spotify
+                window.location.href = authUrl;
+            } catch (error) {
+                console.error('Erreur lors de la connexion:', error);
+                alert('Erreur lors de la tentative de connexion à Spotify. Vérifiez la console pour plus de détails.');
+            }
         }
 
         // Fonction pour extraire le token des paramètres d'URL
@@ -658,6 +669,17 @@
         
         // Initialisation
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initialisation de l\'application...');
+            
+            // Configurer le bouton de connexion Spotify
+            const spotifyConnectBtn = document.getElementById('spotifyConnectBtn');
+            if (spotifyConnectBtn) {
+                console.log('Bouton de connexion Spotify trouvé, ajout du gestionnaire d\'événements');
+                spotifyConnectBtn.addEventListener('click', connectToSpotify);
+            } else {
+                console.error('Bouton de connexion Spotify non trouvé!');
+            }
+
             createParticles();
             
             // Vérifier si on revient d'une authentification Spotify
