@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.spotify.com; script-src 'self' https://*.spotify.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; img-src 'self' data: https://*.spotify.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.spotify.com;">
     <title>Visualiseur Spotify - Vinyle</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -421,14 +422,16 @@
                 const state = Math.random().toString(36).substring(7);
                 localStorage.setItem('spotify_auth_state', state);
                 
-                // Construire l'URL d'autorisation
-                const authUrl = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
-                    response_type: 'token',
-                    client_id: SPOTIFY_CLIENT_ID,
-                    scope: SPOTIFY_SCOPES,
-                    redirect_uri: SPOTIFY_REDIRECT_URI,
-                    state: state
-                }).toString();
+                // Encoder correctement l'URL de redirection
+                const encodedRedirectUri = encodeURIComponent(SPOTIFY_REDIRECT_URI);
+                
+                // Construire l'URL d'autorisation manuellement pour éviter les problèmes d'encodage
+                const authUrl = 'https://accounts.spotify.com/authorize' +
+                    '?response_type=token' +
+                    '&client_id=' + encodeURIComponent(SPOTIFY_CLIENT_ID) +
+                    '&scope=' + encodeURIComponent(SPOTIFY_SCOPES) +
+                    '&redirect_uri=' + encodedRedirectUri +
+                    '&state=' + encodeURIComponent(state);
                 
                 console.log('URL d\'autorisation:', authUrl);
                 
@@ -685,6 +688,17 @@
             // Vérifier si on revient d'une authentification Spotify
             const params = getHashParams();
             if (params.access_token) {
+                // Vérifier l'état pour la sécurité
+                const storedState = localStorage.getItem('spotify_auth_state');
+                if (params.state !== storedState) {
+                    console.error('État invalide, possible tentative de détournement');
+                    alert('Erreur d\'authentification : état invalide');
+                    return;
+                }
+                
+                // Nettoyer l'état stocké
+                localStorage.removeItem('spotify_auth_state');
+                
                 // Sauvegarder le token
                 accessToken = params.access_token;
                 
