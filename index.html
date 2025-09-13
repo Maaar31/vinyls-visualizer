@@ -352,8 +352,26 @@
         <!-- Contrôles -->
         <div class="controls">
             <button class="control-btn" onclick="previousTrack()">⏮</button>
-            <button class="control-btn play-btn" onclick="togglePlay()" id="playBtn">⏸</button>
+            <button class="control-btn play-btn" onclick="togglePlay()" id="playBtn">▶</button>
             <button class="control-btn" onclick="nextTrack()">⏭</button>
+        </div>
+        
+        <!-- Bouton de connexion Spotify -->
+        <div id="spotifyLogin" style="margin-top: 20px;">
+            <button onclick="connectToSpotify()" style="
+                background: linear-gradient(135deg, #1db954, #1ed760);
+                border: none;
+                border-radius: 25px;
+                padding: 12px 24px;
+                color: white;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 15px rgba(29, 185, 84, 0.3);
+            " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                🎵 Se connecter à Spotify
+            </button>
         </div>
         
         <!-- Visualiseur audio -->
